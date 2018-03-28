@@ -7,59 +7,53 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.autograd import Variable
 import numpy as np
-import time
+import time 
 import math
 import pandas as pd
 import sys
 import os
 
-
-
 parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
 parser.add_argument('--batch-size', type=int, default=8192, metavar='N',
                     help='input batch size for training (default: 64)')
 parser.add_argument('--dim', type=int, default=50, metavar='N')
-parser.add_argument('--lr', type=float, default=0.03, metavar='LR',
+parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                     help='learning rate (default: 0.01)')
 args = parser.parse_args()
-
 version = 106
 
-FACTOR = 32
-BATCH_SIZE = args.batch_size*FACTOR
+BATCH_SIZE = args.batch_size
 d = args.dim
-LR = args.lr*FACTOR/32.0
+LR = args.lr
 npasses = 1
 
 
 
 B = Variable(torch.randn(d,d).cuda(), requires_grad = True)
+#B = Variable(torch.eye(d).cuda(), requires_grad = True)
 B.data = B.data.div(B.data.norm(p=2,dim=1, keepdim=True))
 TRUE_B = Variable(torch.eye(d).cuda())
 optimizer = optim.SGD([B], lr=LR)
 
-def loss(y,X,B, mu=5.0):
-    m = d
-    term1 = (0.5*m*m - 1.5*m)*Variable(torch.ones(1, BATCH_SIZE).cuda())
-    temp = torch.mm(B,torch.t(B)).pow(2).sum(dim=0,keepdim=True).sum(dim=1,keepdim=True)
-    term2 = torch.mm(temp, Variable(torch.ones(1,BATCH_SIZE).cuda()))
-    BX = torch.mm(B,X)
-    Bxnormsrt = BX.pow(2).sum(dim=0, keepdim=True)
-    term3 = (3.0-m)*Bxnormsrt
-    temp = B.t().mm(B).mm(B.t()).mm(B).mm(X)
-    temp = temp.mul(X).sum(dim=0, keepdim=True)
-    term4 = -2.0*temp
-    term5 = 0.5*Bxnormsrt.pow(2)
-    BXnorm4 = BX.pow(4).sum(dim=0, keepdim=True)
-    term6 = -0.5*BXnorm4
-    terms_sum = term1 + term2 + term3 + term4 + term5 + term6
-    reg = 1.0*mu*y.mul(1/8.0*m*Variable(torch.ones(1,BATCH_SIZE).cuda()) - 1/4.0*Bxnormsrt + 1/24.0*BXnorm4).mean(dim=1)
-    re = -1.0*y.mul(terms_sum).mean(dim=1) + reg
-    return re/d
+def h2(x):
+    return (x.pow(2)-1.0)/math.sqrt(2)
+
+def h4(x):
+    return (x.pow(4) - 6.0*x.pow(2) + 3.0)/math.sqrt(24)
+
+def h2h4(x):
+    sigma2 = 1.0/(2*math.sqrt(math.pi))
+    sigma4 = -1.0/(4*math.sqrt(math.pi*3))
+    return sigma2*h2(x)+sigma4*h4(x)
+
+def loss(y,X,B):
+    yhat = Variable(torch.ones(1,d).cuda()).mm(h2h4(torch.mm(B,X)))
+    l = (y-yhat).pow(2).mean()/d
+    return l
 
 def true_model(B,X):
     return Variable(torch.ones(1,d).cuda()).mm(F.relu(torch.mm(B,X)))
-
+    
 def train_label(batch_size, B, X):
     #X = Variable(torch.randn(d,batch_size)).cuda()
     y = true_model(B,X)
@@ -91,43 +85,46 @@ def train_epoch(full_data):
         batch_loss, duration = train_batch(X)
         loss_list += [batch_loss[0]]
     return loss_list, time.time() -start_time
-
+        
 def train_fixed_data(ndata, nepoch):
     print('generating data...')
     start_time = time.time()
-    #full_data = np.random.normal(0,1,[d,ndata])
-    #full_data = torch.FloatTensor(full_data).cuda()
-    full_data = torch.normal(torch.zeros(d,ndata).cuda(), torch.ones(d,ndata).cuda())
+    full_data = np.random.normal(0,1,[d,ndata])
+    full_data = torch.FloatTensor(full_data).cuda()
+    print('time to generate data', time.time()-start_time)
     loss_list = []
     for i in range(nepoch):
         l, duration= train_epoch(full_data)
         loss_list += l
         Beval = B.data.cpu().numpy()
-        print('averag_loss = %.3f, std = %.3f, error = %.3f, error2 = %.3f, %.3f sec/epoch, %.3f sec/1M, lr = %.3E, b = %d, d=%d'%(np.mean(l),
+        print('h2h4: averag_loss = %.5f, std = %.3f, row_norm = %3.f, error = %.3f, error2 = %.3f, %.3f sec/epoch, %.3f sec/1M, lr = %.3E, b = %d, d=%d'%(np.mean(l),
                                                 np.std(l)/np.sqrt(len(l)),
-                                                1- np.min(np.amax(np.abs(Beval),axis=1)),
+                                                np.mean(np.linalg.norm(Beval,axis=1)),
+                                                1- np.min(np.amax(np.abs(Beval),axis=1)), 
                                                 1- np.min(np.amax(np.abs(Beval),axis=0)),
-                                                duration,
+                                                duration, 
                                                 duration*1000000/ndata,
                                                 LR,
                                                 BATCH_SIZE,
                                                 d))
         if i == 0:
             test_error = np.mean(l)
-            error1 = 1- np.min(np.amax(np.abs(Beval),axis=1))
-            error2 = 1- np.min(np.amax(np.abs(Beval),axis=0))
-
-    print('time for one epoch', time.time()-start_time)
+            error1 = 1 - np.min(np.amax(np.abs(Beval),axis=1))
+            error2 = 1 - np.min(np.amax(np.abs(Beval),axis=0))
     return test_error, error1, error2
+
 loss_list = []
 error_list = []
 error2_list = []
-for _ in range(3000):
-    test_error, error1, error2 = train_fixed_data(int(BATCH_SIZE*1000*40/d/FACTOR), npasses)
-
+for _ in range(30000):
+    test_error, error1, error2 = train_fixed_data(int(BATCH_SIZE*500), npasses)
     loss_list += [test_error]
     error_list += [error1]
     error2_list += [error2]
+    print(error1)
+    print(error_list)
+    print(error2_list)
+    print(loss_list)
     data = {}
     data['loss'] = loss_list
     data['error'] = error_list
@@ -136,4 +133,5 @@ for _ in range(3000):
     directory = 'results'
     if not os.path.exists(directory):
         os.makedirs(directory)
-    df.to_csv(directory + '/' + 'd%d_batch%d_LR%f_pass%d_run%d.csv'%(d,BATCH_SIZE,LR,npasses,version))
+    df.to_csv(directory + '/' + 'h2h4_d%d_batch%d_LR%f_pass%d_run%d.csv'%(d,BATCH_SIZE,LR,npasses,version))
+    
