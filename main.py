@@ -14,21 +14,23 @@ import sys
 import os
 
 
-
+'''
 parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-parser.add_argument('--batch-size', type=int, default=8192, metavar='N',
+parser.add_argument('--batch-size', type=int, default=1024, metavar='N',
                     help='input batch size for training (default: 64)')
-parser.add_argument('--dim', type=int, default=50, metavar='N')
+parser.add_argument('--dim', type=int, default=5, metavar='N')
 parser.add_argument('--lr', type=float, default=0.03, metavar='LR',
                     help='learning rate (default: 0.01)')
 args = parser.parse_args()
+'''
 
 version = 106
 
-FACTOR = 32
-BATCH_SIZE = args.batch_size*FACTOR
-d = args.dim
-LR = args.lr*FACTOR/32.0
+#FACTOR = 1
+BATCH_SIZE = 1024
+SAMPLE_SIZE = 262144
+d = 5
+LR = 1e-3
 npasses = 1
 
 
@@ -37,6 +39,7 @@ B = Variable(torch.randn(d,d).cuda(), requires_grad = True)
 B.data = B.data.div(B.data.norm(p=2,dim=1, keepdim=True))
 TRUE_B = Variable(torch.eye(d).cuda())
 optimizer = optim.SGD([B], lr=LR)
+
 
 def loss(y,X,B, mu=5.0):
     m = d
@@ -57,6 +60,10 @@ def loss(y,X,B, mu=5.0):
     re = -1.0*y.mul(terms_sum).mean(dim=1) + reg
     return re/d
 
+def loss_l2(y,X,B):
+    hat_y = Variable(torch.ones(1,d).cuda()).mm(F.relu(torch.mm(B,X)))
+    return torch.mean((y-hat_y).pow(2))
+
 def true_model(B,X):
     return Variable(torch.ones(1,d).cuda()).mm(F.relu(torch.mm(B,X)))
 
@@ -68,7 +75,7 @@ def train_label(batch_size, B, X):
 def train_batch(X, batch_size=BATCH_SIZE):
     start = time.time()
     y= train_label(batch_size, TRUE_B, X)
-    l = loss(y,X,B)
+    l = loss_l2(y,X,B)
     re = l.data.cpu().numpy()
     optimizer.zero_grad()
     l.backward()
@@ -78,7 +85,7 @@ def train_batch(X, batch_size=BATCH_SIZE):
 
 def generate_data(size):
     print('generating data ...')
-    return np.random.normal(0, 1, [d, size])
+    return np.random.standard_t(5, [d, size])
 
 def train_epoch(full_data):
     start_time = time.time()
@@ -97,7 +104,8 @@ def train_fixed_data(ndata, nepoch):
     start_time = time.time()
     #full_data = np.random.normal(0,1,[d,ndata])
     #full_data = torch.FloatTensor(full_data).cuda()
-    full_data = torch.normal(torch.zeros(d,ndata).cuda(), torch.ones(d,ndata).cuda())
+    #full_data = torch.normal(torch.zeros(d,ndata).cuda(), torch.ones(d,ndata).cuda())
+    full_data = torch.FloatTensor(generate_data(ndata)).cuda()
     loss_list = []
     for i in range(nepoch):
         l, duration= train_epoch(full_data)
@@ -119,11 +127,14 @@ def train_fixed_data(ndata, nepoch):
 
     print('time for one epoch', time.time()-start_time)
     return test_error, error1, error2
+
+
 loss_list = []
 error_list = []
 error2_list = []
-for _ in range(3000):
-    test_error, error1, error2 = train_fixed_data(int(BATCH_SIZE*1000*40/d/FACTOR), npasses)
+for rnd in range(3000):
+    print("Round: %d"%rnd)
+    test_error, error1, error2 = train_fixed_data(SAMPLE_SIZE, npasses)
 
     loss_list += [test_error]
     error_list += [error1]
