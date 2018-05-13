@@ -185,7 +185,7 @@ def experiment(bw, N_list, T, order=2, mixed=True):
 			elif order == 4:
 				errors.append(Fro_4(S_hat, S_true))
 			
-			if t%1000 == 999:
+			if t%100 == 99:
 				print("Experiment I: Num of sample: %d, Num of try: %d, time: %.4f"%(n,t,time.time()-start_time))
 
 		print(np.mean(errors))
@@ -214,12 +214,13 @@ def print_list(name, l):
 	print(name)
 
 def main():
-	N_list = [64,128,256,512,1024,2048,4096,8192]
+	#N_list = [64,128,256,512,1024]
+	N_list = [1024]
 
         #mean_S_2, std_S_2, per_95_S_2, per_75_S_2, median_S_2, per_25_S_2, per_5_S_2 = experiment(6.0, N_list, T=10000, order=2, mixed=False)
-        #mean_S_4, std_S_4 , per_95_S_4, per_75_S_4, median_S_4, per_25_S_4, per_5_S_4 = experiment(10.0, N_list, T=50000, order=4, mixed=False)
-        mean_S_2_mixed, std_S_2_mixed, per_95_S_2_mixed, per_75_S_2_mixed, median_S_2_mixed, per_25_S_2_mixed, per_5_S_2_mixed = experiment(1.5, N_list, T=10000, order=2, mixed=True)
-        mean_S_4_mixed, std_S_4_mixed, per_95_S_4_mixed, per_75_S_4_mixed, median_S_4_mixed, per_25_S_4_mixed, per_5_S_4_mixed = experiment(2.5, N_list, T=50000, order=4, mixed=True)
+        mean_S_4, std_S_4 , per_95_S_4, per_75_S_4, median_S_4, per_25_S_4, per_5_S_4 = experiment(10.0, N_list, T=50000, order=4, mixed=False)
+        #mean_S_2_mixed, std_S_2_mixed, per_95_S_2_mixed, per_75_S_2_mixed, median_S_2_mixed, per_25_S_2_mixed, per_5_S_2_mixed = experiment(1.5, N_list, T=10000, order=2, mixed=True)
+       # mean_S_4_mixed, std_S_4_mixed, per_95_S_4_mixed, per_75_S_4_mixed, median_S_4_mixed, per_25_S_4_mixed, per_5_S_4_mixed = experiment(2.5, N_list, T=50000, order=4, mixed=True)
 	'''
         print_list("Gaussian S_2: Mean = ",mean_S_2)
         print_list("Gaussian S_2: Std = ",std_S_2)
@@ -247,7 +248,7 @@ def main():
 	print_list("Mixed Gaussian S_2: 25% = ",per_25_S_2_mixed)
 	print_list("Mixed Gaussian S_2: 5% = ",per_5_S_2_mixed)
        
-	
+	'''
         print_list("Mixed Gaussian S_4: Mean = ",mean_S_4_mixed)
         print_list("Mixed Gaussian S_4: Std = ",std_S_4_mixed)
 	print_list("Mixed Gaussian S_4: 95% = ",per_95_S_4_mixed)
@@ -255,7 +256,7 @@ def main():
 	print_list("Mixed Gaussian S_4: 50% = ",median_S_4_mixed)
 	print_list("Mixed Gaussian S_4: 25% = ",per_25_S_4_mixed)
 	print_list("Mixed Gaussian S_4: 5% = ",per_5_S_4_mixed)
-	
+	'''
 
 if __name__ == "__main__":
     main()
